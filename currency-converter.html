@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конвертер валют ЦБ РФ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .input-focus:focus {
+            outline: none;
+            ring: 2px;
+            ring-color: #667eea;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-2xl fade-in">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Конвертер валют</h1>
+            <p class="text-gray-600">Курсы валют Центрального Банка РФ</p>
+            <div id="dateInfo" class="text-sm text-gray-500 mt-2"></div>
+        </div>
+
+        <!-- Индикатор загрузки -->
+        <div id="loading" class="text-center py-8">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-gray-600">Загрузка курсов валют...</p>
+        </div>
+
+        <!-- Основной контент -->
+        <div id="converter" class="hidden">
+            <!-- Ввод суммы -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Сумма</label>
+                <input 
+                    type="number" 
+                    id="amount" 
+                    placeholder="Введите сумму"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent input-focus text-lg"
+                    min="0"
+                    step="0.01"
+                >
+            </div>
+
+            <!-- Выбор валют -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Из валюты</label>
+                    <select 
+                        id="fromCurrency"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent input-focus text-lg bg-white cursor-pointer"
+                    >
+                        <option value="RUB">RUB - Российский рубль</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">В валюту</label>
+                    <select 
+                        id="toCurrency"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent input-focus text-lg bg-white cursor-pointer"
+                    >
+                    </select>
+                </div>
+            </div>
+
+            <!-- Кнопка обмена -->
+            <div class="flex justify-center mb-6">
+                <button 
+                    id="swapBtn"
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 p-3 rounded-full transition-all duration-200 transform hover:rotate-180"
+                    title="Поменять валюты местами"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Результат -->
+            <div class="bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg p-6 text-white">
+                <div class="text-sm opacity-90 mb-2">Результат конвертации</div>
+                <div id="result" class="text-4xl font-bold">0.00</div>
+                <div id="resultDetails" class="text-sm opacity-90 mt-2"></div>
+            </div>
+
+            <!-- Информация о курсе -->
+            <div id="rateInfo" class="mt-4 text-center text-sm text-gray-600"></div>
+        </div>
+
+        <!-- Ошибка -->
+        <div id="error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        let currencies = {};
+        let rates = {};
+
+        // Загрузка курсов валют
+        async function loadExchangeRates() {
+            try {
+                const response = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
+                const data = await response.json();
+                
+                // Сохраняем дату
+                const date = new Date(data.Date);
+                document.getElementById('dateInfo').textContent = 
+                    `Курсы на ${date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+
+                // Добавляем рубль
+                currencies['RUB'] = {
+                    CharCode: 'RUB',
+                    Name: 'Российский рубль',
+                    Nominal: 1,
+                    Value: 1
+                };
+                rates['RUB'] = 1;
+
+                // Добавляем остальные валюты
+                Object.values(data.Valute).forEach(valute => {
+                    currencies[valute.CharCode] = {
+                        CharCode: valute.CharCode,
+                        Name: valute.Name,
+                        Nominal: valute.Nominal,
+                        Value: valute.Value
+                    };
+                    rates[valute.CharCode] = valute.Value / valute.Nominal;
+                });
+
+                // Заполняем селекты
+                populateSelects();
+                
+                // Скрываем загрузку, показываем конвертер
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('converter').classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Ошибка загрузки курсов:', error);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = 
+                    'Не удалось загрузить курсы валют. Проверьте подключение к интернету.';
+            }
+        }
+
+        // Заполнение селектов валют
+        function populateSelects() {
+            const fromSelect = document.getElementById('fromCurrency');
+            const toSelect = document.getElementById('toCurrency');
+            
+            // Очищаем селекты
+            fromSelect.innerHTML = '';
+            toSelect.innerHTML = '';
+            
+            // Сортируем валюты по коду
+            const sortedCurrencies = Object.values(currencies).sort((a, b) => 
+                a.CharCode.localeCompare(b.CharCode)
+            );
+            
+            sortedCurrencies.forEach(currency => {
+                const option1 = document.createElement('option');
+                option1.value = currency.CharCode;
+                option1.textContent = `${currency.CharCode} - ${currency.Name}`;
+                fromSelect.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = currency.CharCode;
+                option2.textContent = `${currency.CharCode} - ${currency.Name}`;
+                toSelect.appendChild(option2);
+            });
+            
+            // Устанавливаем значения по умолчанию
+            fromSelect.value = 'RUB';
+            toSelect.value = 'USD';
+        }
+
+        // Конвертация валют
+        function convert() {
+            const amount = parseFloat(document.getElementById('amount').value) || 0;
+            const fromCurrency = document.getElementById('fromCurrency').value;
+            const toCurrency = document.getElementById('toCurrency').value;
+            
+            if (!amount || amount <= 0) {
+                document.getElementById('result').textContent = '0.00';
+                document.getElementById('resultDetails').textContent = '';
+                document.getElementById('rateInfo').textContent = '';
+                return;
+            }
+            
+            // Конвертируем через рубли
+            let result;
+            if (fromCurrency === 'RUB') {
+                result = amount / rates[toCurrency];
+            } else if (toCurrency === 'RUB') {
+                result = amount * rates[fromCurrency];
+            } else {
+                // Конвертируем: валюта1 -> рубли -> валюта2
+                const rubles = amount * rates[fromCurrency];
+                result = rubles / rates[toCurrency];
+            }
+            
+            // Форматируем результат
+            const formattedResult = result.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            
+            document.getElementById('result').textContent = formattedResult;
+            
+            // Детали конвертации
+            const fromName = currencies[fromCurrency].Name;
+            const toName = currencies[toCurrency].Name;
+            document.getElementById('resultDetails').textContent = 
+                `${amount.toLocaleString('ru-RU')} ${fromCurrency} = ${formattedResult} ${toCurrency}`;
+            
+            // Информация о курсе
+            let rateInfo = '';
+            if (fromCurrency === 'RUB') {
+                rateInfo = `1 ${toCurrency} = ${(1 / rates[toCurrency]).toLocaleString('ru-RU', {minimumFractionDigits: 4})} RUB`;
+            } else if (toCurrency === 'RUB') {
+                rateInfo = `1 ${fromCurrency} = ${rates[fromCurrency].toLocaleString('ru-RU', {minimumFractionDigits: 4})} RUB`;
+            } else {
+                const rate = rates[fromCurrency] / rates[toCurrency];
+                rateInfo = `1 ${fromCurrency} = ${rate.toLocaleString('ru-RU', {minimumFractionDigits: 4})} ${toCurrency}`;
+            }
+            document.getElementById('rateInfo').textContent = rateInfo;
+        }
+
+        // Обмен валют местами
+        function swapCurrencies() {
+            const fromSelect = document.getElementById('fromCurrency');
+            const toSelect = document.getElementById('toCurrency');
+            const temp = fromSelect.value;
+            fromSelect.value = toSelect.value;
+            toSelect.value = temp;
+            convert();
+        }
+
+        // Обработчики событий
+        document.getElementById('amount').addEventListener('input', convert);
+        document.getElementById('fromCurrency').addEventListener('change', convert);
+        document.getElementById('toCurrency').addEventListener('change', convert);
+        document.getElementById('swapBtn').addEventListener('click', swapCurrencies);
+
+        // Загрузка курсов при загрузке страницы
+        loadExchangeRates();
+    </script>
+</body>
+</html>
