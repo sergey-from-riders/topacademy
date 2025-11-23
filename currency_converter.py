@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Программа для получения курса валют с сайта Центробанка РФ
-и пересчета 100 долларов в рубли
+и пересчета 100 фунтов стерлингов в рубли
 """
 
 import requests
@@ -10,12 +10,12 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 
 
-def get_currency_rate(currency_code='USD'):
+def get_currency_rate(currency_code='GBP'):
     """
     Получает курс валюты с сайта Центробанка РФ
     
     Args:
-        currency_code: Код валюты (по умолчанию USD - доллар США)
+        currency_code: Код валюты (по умолчанию GBP - фунт стерлингов)
     
     Returns:
         tuple: (номинал, курс, название валюты) или None в случае ошибки
@@ -53,18 +53,18 @@ def get_currency_rate(currency_code='USD'):
         return None
 
 
-def convert_usd_to_rub(usd_amount=100):
+def convert_gbp_to_rub(gbp_amount=100):
     """
-    Конвертирует доллары США в рубли по курсу ЦБ РФ
+    Конвертирует фунты стерлингов в рубли по курсу ЦБ РФ
     
     Args:
-        usd_amount: Сумма в долларах (по умолчанию 100)
+        gbp_amount: Сумма в фунтах стерлингов (по умолчанию 100)
     
     Returns:
         float: Сумма в рублях или None в случае ошибки
     """
-    # Получаем курс доллара
-    rate_info = get_currency_rate('USD')
+    # Получаем курс фунта стерлингов
+    rate_info = get_currency_rate('GBP')
     
     if rate_info is None:
         print("Не удалось получить курс валюты")
@@ -73,30 +73,30 @@ def convert_usd_to_rub(usd_amount=100):
     nominal, value, name = rate_info
     
     # Курс в API указан для nominal единиц валюты
-    # Например, если nominal=1, то value - это курс за 1 доллар
-    # Если nominal=10, то value - это курс за 10 долларов
+    # Например, если nominal=1, то value - это курс за 1 фунт
+    # Если nominal=10, то value - это курс за 10 фунтов
     rate_per_unit = value / nominal
     
     # Пересчитываем
-    rub_amount = usd_amount * rate_per_unit
+    rub_amount = gbp_amount * rate_per_unit
     
     print(f"\nКурс валюты: {name}")
     print(f"Номинал: {nominal}")
     print(f"Курс ЦБ РФ: {value} рублей за {nominal} {name}")
     print(f"Курс за единицу: {rate_per_unit:.4f} рублей")
-    print(f"\n{usd_amount} USD = {rub_amount:.2f} RUB")
+    print(f"\n{gbp_amount} GBP = {rub_amount:.2f} RUB")
     
     return rub_amount
 
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("Конвертер валют: USD -> RUB")
+    print("Конвертер валют: GBP -> RUB")
     print("Курс с сайта Центробанка РФ")
     print("=" * 50)
     
-    # Конвертируем 100 долларов в рубли
-    result = convert_usd_to_rub(100)
+    # Конвертируем 100 фунтов стерлингов в рубли
+    result = convert_gbp_to_rub(100)
     
     if result is not None:
         print("\nКонвертация выполнена успешно!")
